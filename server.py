@@ -109,6 +109,8 @@ def server():
                 response = electricityConsumption()
                 incoming_socket.sendall(response.encode('utf-8'))
             elif data == "exit":
+                response = "Exiting"
+                incoming_socket.sendall(response.encode('utf-8'))
                 break
             else:
                 print("Sorry, this query cannot be processed.")
