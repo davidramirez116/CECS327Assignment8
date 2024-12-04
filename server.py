@@ -1,5 +1,6 @@
 import socket
 from pymongo import MongoClient
+from datetime import datetime, timedelta
 
 client = MongoClient('mongodb+srv://ryangallagher01:FtTgpOQcUsDo01o7@cluster0.7mcrx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
 db = client['test']
@@ -7,21 +8,33 @@ collection = db['IOT Devices_virtual']  # Replace with your collection name
 
 
 def averageMoisture():
-    cursor = collection.find({},{"payload.Moisture Meter - Fridge Moisture Meter"})
-    moistureVals = []
+    # Calculate the timestamp for 3 hours ago
+    three_hours_ago = datetime.now() - timedelta(hours=3)
+    three_hours_ago_timestamp = int(three_hours_ago.timestamp())  # Convert to UNIX timestamp
 
-    for obj in cursor:
+    # Query to find documents from the last 3 hours
+    cursor = collection.find(
+        {"payload.timestamp": {"$gte": str(three_hours_ago_timestamp)}},  # Match timestamps >= 3 hours ago
+        {"payload.Moisture Meter - Fridge Moisture Meter": 1, "payload.timestamp": 1}  # Only fetch relevant fields
+    )
+
+    # Calculate the average moisture level
+    moisture_values = []
+
+    for document in cursor:
         try:
-            value = float(obj["payload"]["Moisture Meter - Fridge Moisture Meter"])
-            moistureVals.append(value)
+            value = float(document["payload"]["Moisture Meter - Fridge Moisture Meter"])  # Extract and convert moisture values
+            moisture_values.append(value)
         except (KeyError, ValueError):
+            # Skip documents with missing or invalid values
             continue
 
-    if moistureVals:
-        avg = sum(moistureVals)/len(moistureVals)
-        print(f"Average Moisture Levels: {avg:.4f}")
+    # Compute the average
+    if moisture_values:
+        average = sum(moisture_values) / len(moisture_values)
+        return f"Average Moisture Level (Last 3 Hours): {average:.4f}"
     else:
-        print("Error, no moisture values")
+        return "No valid moisture level readings found in the last 3 hours."
 
 def averageWaterConsumption():
     cursor = collection.find({}, {"payload.Water Consumption Sensor"})
@@ -36,9 +49,9 @@ def averageWaterConsumption():
 
     if consumptionVals:
         avg = sum(consumptionVals)/len(consumptionVals)
-        print(f"Average Water Consumption: {avg:.4f}")
+        return f"Average Water Consumption: {avg:.4f}"
     else:
-        print("Error, no consumption values")
+        return "Error, no consumption values"
 
 def electricityConsumption():
     max_value = float('-inf')
@@ -69,11 +82,9 @@ def electricityConsumption():
 
     # Output the device with the highest Ammeter value
     if max_device:
-        print("Device with the highest Ammeter value:")
-        print(f"Device Name: {max_device['device_name']}")
-        print(f"Ammeter Value: {max_device['ammeter_value']}")
+        return f"Device with the highest Ammeter value: \nDevice Name: {max_device['device_name']}\nAmmeter Value: {max_device['ammeter_value']}"
     else:
-        print("No valid Ammeter values found.")
+        return "No valid Ammeter values found."
 
 def server():
     server_socket  = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,12 +99,17 @@ def server():
             data = incoming_socket.recv(1024).decode('utf-8')
             if not data:
                 break
-            if data == "1":
-                averageMoisture()
-            elif data == "2":
-                averageWaterConsumption()
-            elif data == "3":
-                electricityConsumption()
+            if data == "What is the average moisture inside my kitchen fridge in the past three hours?":
+                response = averageMoisture()
+                incoming_socket.sendall(response.encode('utf-8'))
+            elif data == "What is the average water consumption per cycle in my smart dishwasher?":
+                response = averageWaterConsumption()
+                incoming_socket.sendall(response.encode('utf-8'))
+            elif data == "Which device consumed more electricity among my three IoT devices?":
+                response = electricityConsumption()
+                incoming_socket.sendall(response.encode('utf-8'))
+            elif data == "exit":
+                break
             else:
                 print("Sorry, this query cannot be processed.")
 
@@ -104,7 +120,5 @@ def server():
     incoming_socket.close()
 
 if __name__ == "__main__":
-    averageMoisture()
-    averageWaterConsumption()
-    electricityConsumption()
+    server()
 

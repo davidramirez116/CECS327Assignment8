@@ -32,7 +32,7 @@ def client():
 
                 # receive message from server
                 data = client.recv(1024)
-                print("Server response: ", data.decode())
+                print("Server response: \n", data.decode())
             except socket.error as e:
                 print("Error: ", e)
             if query.lower() == "exit":
