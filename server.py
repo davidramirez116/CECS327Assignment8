@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 client = MongoClient('mongodb+srv://ryangallagher01:FtTgpOQcUsDo01o7@cluster0.7mcrx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
 db = client['test']
-collection = db['IOT Devices_virtual']  # Replace with your collection name
+collection = db['IOT Devices_virtual'] 
 
 
 def averageMoisture():
@@ -32,7 +32,7 @@ def averageMoisture():
     # Compute the average
     if moisture_values:
         average = sum(moisture_values) / len(moisture_values)
-        return f"Average Moisture Level (Last 3 Hours): {average:.4f}"
+        return f"Average Moisture Level (Last 3 Hours): {average:.4f} % wfv"
     else:
         return "No valid moisture level readings found in the last 3 hours."
 
@@ -42,14 +42,15 @@ def averageWaterConsumption():
 
     for obj in cursor:
         try:
-            value = float(obj["payload"]["Water Consumption Sensor"])
+            value = float(obj["payload"]["Water Consumption Sensor"]) 
             consumptionVals.append(value)
         except (KeyError, ValueError):
             continue
 
     if consumptionVals:
-        avg = sum(consumptionVals)/len(consumptionVals)
-        return f"Average Water Consumption: {avg:.4f}"
+        avg = sum(consumptionVals)/len(consumptionVals) #currently ml/s
+        converted_avg = avg / 3785.41 * 1800 #converts mL/s to G/Cycle
+        return f"Average Water Consumption: {converted_avg:.4f} G/Cycle"
     else:
         return "Error, no consumption values"
 
@@ -82,7 +83,7 @@ def electricityConsumption():
 
     # Output the device with the highest Ammeter value
     if max_device:
-        return f"Device with the highest Ammeter value: \nDevice Name: {max_device['device_name']}\nAmmeter Value: {max_device['ammeter_value']}"
+        return f"Device with the highest Ammeter value: \nDevice Name: {max_device['device_name']}\nAmmeter Value: {max_device['ammeter_value']} V"
     else:
         return "No valid Ammeter values found."
 

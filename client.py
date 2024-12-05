@@ -2,7 +2,7 @@ import socket
 
 def client():
     # List of valid queries (as well as exit command)
-    valid_queries = [
+    queries = [
         "What is the average moisture inside my kitchen fridge in the past three hours?",
         "What is the average water consumption per cycle in my smart dishwasher?",
         "Which device consumed more electricity among my three IoT devices?", "exit"]
@@ -18,14 +18,15 @@ def client():
     
     while True:
         valid_q = False
-        query = input("Enter query: (type 'exit' to quit)\n")
+        choice = int(input("Select query: \n1. What is the average moisture inside my kitchen fridge in the past three hours?\n2. What is the average water consumption per cycle in my smart dishwasher?\n3. Which device consumed more electricity among my three IoT devices?\n4. Exit\n"))
 
-        if query not in valid_queries:
-            print("Sorry, this query cannot be processed. Please try one of the following:\n", valid_queries)
+        if type(choice) is not int or choice < 1 or choice > 4:
+            print("Invalid input, please select menu option.")
         else:
             valid_q = True
         # Only send query if it is valid
         if valid_q:
+            query = queries[choice - 1]
             try:
                 # send message to server
                 client.send(query.encode())
