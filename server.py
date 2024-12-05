@@ -83,7 +83,7 @@ def electricityConsumption():
 
     # Output the device with the highest Ammeter value
     if max_device:
-        return f"Device with the highest Ammeter value: \nDevice Name: {max_device['device_name']}\nAmmeter Value: {max_device['ammeter_value']} V"
+        return f"Device with the highest Ammeter value: \nDevice Name: {max_device['device_name']}\nAmmeter Value: {max_device['ammeter_value']} A"
     else:
         return "No valid Ammeter values found."
 
