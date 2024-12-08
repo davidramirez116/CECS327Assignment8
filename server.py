@@ -4,18 +4,30 @@ from datetime import datetime, timedelta
 
 client = MongoClient('mongodb+srv://ryangallagher01:FtTgpOQcUsDo01o7@cluster0.7mcrx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
 db = client['test']
-collection = db['IOT Devices_virtual'] 
-
+main_collection = db['IOT Devices_virtual']
+metadata_collection = db['IOT Devices_metadata']
 
 def averageMoisture():
+    fridge_uids = metadata_collection.find(
+        {
+            "customAttributes.type": "DEVICE",
+            "customAttributes.name": "Fridge",
+            "customAttributes.additionalMetadata.location": "Kitchen"
+        })
+
+    # extract uids into list
+    fridge_uids = [device["assetUid"] for device in fridge_uids]
+
     # Calculate the timestamp for 3 hours ago
     three_hours_ago = datetime.now() - timedelta(hours=3)
     three_hours_ago_timestamp = int(three_hours_ago.timestamp())  # Convert to UNIX timestamp
 
     # Query to find documents from the last 3 hours
-    cursor = collection.find(
-        {"payload.timestamp": {"$gte": str(three_hours_ago_timestamp)}},  # Match timestamps >= 3 hours ago
-        {"payload.Moisture Meter - Fridge Moisture Meter": 1, "payload.timestamp": 1}  # Only fetch relevant fields
+    cursor = main_collection.find(
+        {"payload.timestamp": {"$gte": str(three_hours_ago_timestamp)},
+         "payload.parent_asset_uid": fridge_uids[0]
+         },  # Match timestamps >= 3 hours ago
+        {"payload.Moisture Meter - Moisture Meter": 1, "payload.timestamp": 1}  # Only fetch relevant fields
     )
 
     # Calculate the average moisture level
@@ -23,7 +35,7 @@ def averageMoisture():
 
     for document in cursor:
         try:
-            value = float(document["payload"]["Moisture Meter - Fridge Moisture Meter"])  # Extract and convert moisture values
+            value = float(document["payload"]["Moisture Meter - Moisture Meter"])  # Extract and convert moisture values
             moisture_values.append(value)
         except (KeyError, ValueError):
             # Skip documents with missing or invalid values
@@ -36,8 +48,9 @@ def averageMoisture():
     else:
         return "No valid moisture level readings found in the last 3 hours."
 
+
 def averageWaterConsumption():
-    cursor = collection.find({}, {"payload.Water Consumption Sensor"})
+    cursor = main_collection.find({}, {"payload.Water Consumption Sensor"})
     consumptionVals = []
 
     for obj in cursor:
@@ -49,41 +62,43 @@ def averageWaterConsumption():
 
     if consumptionVals:
         avg = sum(consumptionVals)/len(consumptionVals) #currently ml/s
-        converted_avg = avg / 3785.41 * 1800 #converts mL/s to G/Cycle
+        converted_avg = avg / 3786.41 # 1 gal = 3785.41 mls. Cycle has been set to 1 hour in dataniz, no need to multiply by time value
+        #converted_avg = avg / 3785.41 * 1800 #converts mL/s to G/Cycle
         return f"Average Water Consumption: {converted_avg:.4f} G/Cycle"
     else:
         return "Error, no consumption values"
 
 def electricityConsumption():
-    max_value = float('-inf')
-    max_device = None
+    # map assetUID to device name
+    metadata = metadata_collection.find({}, {"assetUid": 1, "customAttributes.name": 1, "_id": 0})
+    device_names = {doc["assetUid"]: doc["customAttributes"]["name"] for doc in metadata}
 
-    # Iterate through all documents in the collection
-    cursor = collection.find({})
+    cursor = main_collection.find(
+        {},
+        {"payload": 1} #retreive payload of each document
+    )
+
+    max = 0
+    device_uid = None
+
+    # find max ammeter value, update max and device uid
     for document in cursor:
-        payload = document.get("payload", {})
+        payload = document.get("payload",{})
         for key, value in payload.items():
-            if "Ammeter" in key:  # Check if the field name contains 'Ammeter'
+            if "Ammeter" in key:
                 try:
-                    ammeter_value = float(value)  # Convert to float for comparison
-                    if ammeter_value > max_value:
-                        max_value = ammeter_value
-                        if payload.get("board_name") == "Raspberry Pi 4 - Raspberry Pi 4 - DISHWASHER":
-                            device = "Dishwasher"
-                        elif payload.get("board_name") == "Raspberry Pi 4 - Raspberry Pi 4 - FRIDGE":
-                            device = "Fridge 1"
-                        else:
-                            device = "Fridge 2"
-                        max_device = {
-                            "device_name": device,
-                            "ammeter_value": ammeter_value
-                        }
-                except ValueError:
-                    continue  # Skip invalid numeric values
+                    energy_value = float(value)
+                    if energy_value > max:
+                        max = energy_value
+                        device_uid = payload.get("parent_asset_uid")
+                except (ValueError, KeyError):
+                    continue
 
     # Output the device with the highest Ammeter value
-    if max_device:
-        return f"Device with the highest Ammeter value: \nDevice Name: {max_device['device_name']}\nAmmeter Value: {max_device['ammeter_value']} A"
+    if device_uid and device_uid in device_names:
+        max_device = device_names[device_uid]
+        maxKWH = max * 120 / 1000 #kw is amps * volts/1000
+        return f"Device with the highest Ammeter value: \nDevice Name: {max_device}\nAmmeter Value: {maxKWH} kWh"
     else:
         return "No valid Ammeter values found."
 
@@ -123,5 +138,5 @@ def server():
     incoming_socket.close()
 
 if __name__ == "__main__":
+    #server()
     server()
-
